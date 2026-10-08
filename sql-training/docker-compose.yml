@@ -1,0 +1,167 @@
+services:
+
+  # ============================================================
+  # PostgreSQL
+  # ============================================================
+  postgres:
+    image: postgres:17
+    container_name: training-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: trainee
+      POSTGRES_PASSWORD: trainee123
+      POSTGRES_DB: shopdb
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-postgres:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U trainee -d shopdb"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+    networks:
+      - training-network
+
+
+  # ============================================================
+  # pgAdmin
+  # ============================================================
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: training-pgadmin
+    restart: unless-stopped
+
+    environment:
+      PGADMIN_DEFAULT_EMAIL: trainee@example.com
+      PGADMIN_DEFAULT_PASSWORD: trainee123
+
+    ports:
+      - "5050:80"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    volumes:
+      - pgadmindata:/var/lib/pgadmin
+
+    networks:
+      - training-network
+
+
+  # ============================================================
+  # MongoDB
+  # ============================================================
+  mongo:
+    image: mongo:8
+    container_name: training-mongo
+    restart: unless-stopped
+
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: trainee
+      MONGO_INITDB_ROOT_PASSWORD: trainee123
+      MONGO_INITDB_DATABASE: shopdb
+
+    ports:
+      - "27017:27017"
+
+    volumes:
+      - mongodata:/data/db
+      - ./init-mongo:/docker-entrypoint-initdb.d:ro
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet --eval \"db.adminCommand('ping').ok\""
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+    networks:
+      - training-network
+
+
+  # ============================================================
+  # Redis
+  # ============================================================
+  redis:
+    image: redis:7
+    container_name: training-redis
+    restart: unless-stopped
+
+    ports:
+      - "6379:6379"
+
+    volumes:
+      - redisdata:/data
+
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "ping"
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+    networks:
+      - training-network
+
+
+  # ============================================================
+  # RedisInsight
+  # ============================================================
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: training-redisinsight
+    restart: unless-stopped
+
+    ports:
+      - "5540:5540"
+
+    depends_on:
+      redis:
+        condition: service_healthy
+
+    networks:
+      - training-network
+
+
+# ==============================================================
+# Persistent volumes
+# ==============================================================
+volumes:
+  pgdata:
+  pgadmindata:
+  mongodata:
+  redisdata:
+
+
+# ==============================================================
+# Shared Docker network
+# ==============================================================
+networks:
+  training-network:
+    driver: bridge
